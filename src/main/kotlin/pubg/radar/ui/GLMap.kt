@@ -22,7 +22,7 @@ import pubg.radar.deserializer.channel.ActorChannel.Companion.visualActors
 import pubg.radar.http.PlayerProfile.Companion.completedPlayerInfo
 import pubg.radar.http.PlayerProfile.Companion.pendingPlayerInfo
 import pubg.radar.http.PlayerProfile.Companion.query
-import pubg.radar.sniffer.Sniffer.Companion.localAddr
+import pubg.radar.sniffer.Sniffer.Companion.targetAddr
 import pubg.radar.sniffer.Sniffer.Companion.preDirection
 import pubg.radar.sniffer.Sniffer.Companion.preSelfCoords
 import pubg.radar.sniffer.Sniffer.Companion.selfCoords
@@ -57,79 +57,81 @@ import kotlin.math.*
 typealias renderInfo = tuple4<Actor, Float, Float, Float>
 
 fun Float.d(n: Int) = String.format("%.${n}f", this)
-class GLMap: InputAdapter(), ApplicationListener, GameListener {
+class GLMap : InputAdapter(), ApplicationListener, GameListener {
   companion object {
     operator fun Vector3.component1(): Float = x
     operator fun Vector3.component2(): Float = y
     operator fun Vector3.component3(): Float = z
     operator fun Vector2.component1(): Float = x
     operator fun Vector2.component2(): Float = y
-    
+
     val spawnErangel = Vector2(795548.3f, 17385.875f)
     val spawnDesert = Vector2(78282f, 731746f)
   }
-  
+
   init {
     register(this)
   }
-  
+
   override fun onGameStart() {
     preSelfCoords.set(if (isErangel) spawnErangel else spawnDesert)
     selfCoords.set(preSelfCoords)
     preDirection.setZero()
   }
-  
+
   override fun onGameOver() {
     camera.zoom = 1 / 4f
-    
+
     aimStartTime.clear()
     attackLineStartTime.clear()
     pinLocation.setZero()
   }
-  
+
   fun show() {
     val config = Lwjgl3ApplicationConfiguration()
-    config.setTitle("[${localAddr.hostAddress} ${sniffOption.name}] - PUBG Radar")
+    config.setTitle("[${targetAddr.hostAddress} ${sniffOption.name}] - PUBG Radar")
     config.useOpenGL3(true, 3, 3)
     config.setWindowedMode(1000, 1000)
     config.setResizable(true)
     config.setBackBufferConfig(8, 8, 8, 8, 32, 0, 8)
     Lwjgl3Application(this, config)
   }
-  
+
   lateinit var spriteBatch: SpriteBatch
   lateinit var shapeRenderer: ShapeRenderer
   lateinit var mapErangel: Texture
   lateinit var mapMiramar: Texture
+  lateinit var iconImages: Map<String, Texture>
   lateinit var map: Texture
   lateinit var largeFont: BitmapFont
   lateinit var littleFont: BitmapFont
   lateinit var nameFont: BitmapFont
+  lateinit var itemFont: BitmapFont
   lateinit var fontCamera: OrthographicCamera
   lateinit var camera: OrthographicCamera
   lateinit var alarmSound: Sound
-  
+
   val layout = GlyphLayout()
   var windowWidth = initialWindowWidth
   var windowHeight = initialWindowWidth
-  
+
   val aimStartTime = HashMap<NetworkGUID, Long>()
   val attackLineStartTime = LinkedList<Triple<NetworkGUID, NetworkGUID, Long>>()
   val pinLocation = Vector2()
-  
+
   fun Vector2.windowToMap() =
       Vector2(selfCoords.x + (x - windowWidth / 2.0f) * camera.zoom * windowToMapUnit,
               selfCoords.y + (y - windowHeight / 2.0f) * camera.zoom * windowToMapUnit)
-  
+
   fun Vector2.mapToWindow() =
       Vector2((x - selfCoords.x) / (camera.zoom * windowToMapUnit) + windowWidth / 2.0f,
               (y - selfCoords.y) / (camera.zoom * windowToMapUnit) + windowHeight / 2.0f)
-  
+
   override fun scrolled(amount: Int): Boolean {
     camera.zoom *= 1.1f.pow(amount)
     return true
   }
-  
+
   override fun touchDown(screenX: Int, screenY: Int, pointer: Int, button: Int): Boolean {
     if (button == RIGHT) {
       pinLocation.set(pinLocation.set(screenX.toFloat(), screenY.toFloat()).windowToMap())
@@ -137,11 +139,11 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
     }
     return false
   }
-  
+
   override fun create() {
     spriteBatch = SpriteBatch()
     shapeRenderer = ShapeRenderer()
-    Gdx.input.inputProcessor = this;
+    Gdx.input.inputProcessor = this
     camera = OrthographicCamera(windowWidth, windowHeight)
     with(camera) {
       setToOrtho(true, windowWidth * windowToMapUnit, windowHeight * windowToMapUnit)
@@ -150,13 +152,49 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
       position.set(mapWidth / 2, mapWidth / 2, 0f)
       update()
     }
-    
+
     fontCamera = OrthographicCamera(initialWindowWidth, initialWindowWidth)
     alarmSound = Gdx.audio.newSound(Gdx.files.internal("Alarm.wav"))
     mapErangel = Texture(Gdx.files.internal("Erangel.bmp"))
     mapMiramar = Texture(Gdx.files.internal("Miramar.bmp"))
+    iconImages = mapOf(
+      "AR.Supp" to Texture(Gdx.files.internal("icons/AR.Supp.png")),
+      "S.Supp" to Texture(Gdx.files.internal("icons/S.Supp.png")),
+      "AR.Comp" to Texture(Gdx.files.internal("icons/AR.Comp.png")),
+      "S.Comp" to Texture(Gdx.files.internal("icons/S.Comp.png")),
+      "AR.ExtQ" to Texture(Gdx.files.internal("icons/AR.ExtQ.png")),
+      "S.ExtQ" to Texture(Gdx.files.internal("icons/S.ExtQ.png")),
+      "AR.Ext" to Texture(Gdx.files.internal("icons/AR.Ext.png")),
+      "S.Ext" to Texture(Gdx.files.internal("icons/S.Ext.png")),
+      "AR.Stock" to Texture(Gdx.files.internal("icons/AR.Stock.png")),
+      "CheekPad" to Texture(Gdx.files.internal("icons/CheekPad.png")),
+      "A.Grip" to Texture(Gdx.files.internal("icons/A.Grip.png")),
+      "V.Grip" to Texture(Gdx.files.internal("icons/V.Grip.png")),
+      "556" to Texture(Gdx.files.internal("icons/556.png")),
+      "98k" to Texture(Gdx.files.internal("icons/98k.png")),
+      "Mini" to Texture(Gdx.files.internal("icons/Mini.png")),
+      "M4" to Texture(Gdx.files.internal("icons/M4.png")),
+      "Scar" to Texture(Gdx.files.internal("icons/Scar.png")),
+      "Ak" to Texture(Gdx.files.internal("icons/Ak.png")),
+      "8x" to Texture(Gdx.files.internal("icons/8x.png")),
+      "4x" to Texture(Gdx.files.internal("icons/4x.png")),
+      "2x" to Texture(Gdx.files.internal("icons/2x.png")),
+      "R.Dot" to Texture(Gdx.files.internal("icons/R.Dot.png")),
+      "Arm3" to Texture(Gdx.files.internal("icons/Arm3.png")),
+      "Arm2" to Texture(Gdx.files.internal("icons/Arm2.png")),
+      "Helm3" to Texture(Gdx.files.internal("icons/Helm3.png")),
+      "Helm2" to Texture(Gdx.files.internal("icons/Helm2.png")),
+      "Bag3" to Texture(Gdx.files.internal("icons/Bag3.png")),
+      "Bag2" to Texture(Gdx.files.internal("icons/Bag2.png")),
+      "Pan" to Texture(Gdx.files.internal("icons/Pan.png")),
+      "MedKit" to Texture(Gdx.files.internal("icons/MedKit.png")),
+      "FirstAid" to Texture(Gdx.files.internal("icons/FirstAid.png")),
+      "Pain" to Texture(Gdx.files.internal("icons/Pain.png")),
+      "Drink" to Texture(Gdx.files.internal("icons/Drink.png")),
+      "Grenade" to Texture(Gdx.files.internal("icons/Grenade.png"))
+    )
     map = mapErangel
-    
+
     val generator = FreeTypeFontGenerator(Gdx.files.internal("GOTHICB.TTF"))
     val param = FreeTypeFontParameter()
     param.size = 50
@@ -169,41 +207,42 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
     param.color = BLACK
     param.size = 15
     nameFont = generator.generateFont(param)
+    param.color = BLACK
+    param.size = 10
+    itemFont = generator.generateFont(param)
     generator.dispose()
-    
   }
-  
+
   val dirUnitVector = Vector2(1f, 0f)
   override fun render() {
     Gdx.gl.glClearColor(0.417f, 0.417f, 0.417f, 0f)
     Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)
     if (gameStarted)
       map = if (isErangel) mapErangel else mapMiramar
-    else
-      return
+    else return
     val currentTime = System.currentTimeMillis()
     val (selfX, selfY) = selfCoords
     val selfDir = Vector2(selfX, selfY).sub(preSelfCoords)
     if (selfDir.len() < 1e-8)
       selfDir.set(preDirection)
-    
+
     //move camera
     camera.position.set(selfX, selfY, 0f)
     camera.update()
-    
+
     //draw map
     paint(camera.combined) {
       draw(map, 0f, 0f, mapWidth, mapWidth,
-           0, 0, mapWidthCropped, mapWidthCropped,
+           0, 0, map.width, map.height,
            false, true)
     }
-    
+
     shapeRenderer.projectionMatrix = camera.combined
     Gdx.gl.glEnable(GL20.GL_BLEND)
-    
+
     drawGrid()
     drawCircles()
-    
+
     val typeLocation = EnumMap<Archetype, MutableList<renderInfo>>(Archetype::class.java)
     for ((_, actor) in visualActors)
       typeLocation.compute(actor.Type) { _, v ->
@@ -213,7 +252,7 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
         list.add(tuple4(actor, centerX, centerY, direction))
         list
       }
-    
+
     paint(fontCamera.combined) {
       largeFont.draw(spriteBatch, "$NumAlivePlayers/$NumAliveTeams\n" +
                                   "${MatchElapsedMinutes}min\n" +
@@ -223,18 +262,57 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
       littleFont.draw(spriteBatch, "$time", x, windowHeight - y)
       safeZoneHint()
       drawPlayerInfos(typeLocation[Player])
+
+      var itemNameDrawBlacklist = arrayListOf(
+        "AR.Stock",
+        "S.Loops",
+        "FlashHider",
+        "Choke",
+        "V.Grip",
+        "556",
+        "762",
+        "Ak",
+        "Sks",
+        "Grenade"
+      )
+      droppedItemLocation.values.asSequence().filter { it.second.isNotEmpty() }
+        .forEach {
+          val (x, y) = it.first
+          val items = it.second
+          val finalColor = it.third
+
+          val (sx, sy) = Vector2(x, y).mapToWindow()
+          val syFix = windowHeight - sy
+
+          var yOffset = 2
+          // println(items)
+          items.forEach {
+            if (it !in itemNameDrawBlacklist) {
+              if (
+                it in iconImages &&
+                sx > 0 && sx < windowWidth &&
+                syFix > 0 && syFix < windowHeight
+              ) {
+                draw(iconImages[it], sx, syFix)
+              } else {
+                // itemFont.draw(spriteBatch, it, sx, windowHeight - sy - yOffset)
+              }
+              yOffset = yOffset + 2
+            }
+          }
+        }
     }
-    
+
     val zoom = camera.zoom
-    
+
     Gdx.gl.glEnable(GL20.GL_BLEND)
     draw(Filled) {
       color = redZoneColor
       circle(RedZonePosition, RedZoneRadius, 100)
-      
+
       color = visionColor
       circle(selfX, selfY, visionRadius, 100)
-      
+
       color = pinColor
       circle(pinLocation, pinRadius * zoom, 10)
       //draw self
@@ -244,15 +322,15 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
       drawCorpse()
       drawAPawn(typeLocation, selfX, selfY, zoom, currentTime)
     }
-    
+
     drawAttackLine(currentTime)
-    
+
     preSelfCoords.set(selfX, selfY)
     preDirection = selfDir
-    
+
     Gdx.gl.glDisable(GL20.GL_BLEND)
   }
-  
+
   private fun drawAttackLine(currentTime: Long) {
     while (attacks.isNotEmpty()) {
       val (A, B) = attacks.poll()
@@ -300,18 +378,18 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
       }
     }
   }
-  
+
   private fun drawCircles() {
     Gdx.gl.glLineWidth(2f)
     draw(Line) {
       //vision circle
-      
+
       color = safeZoneColor
       circle(PoisonGasWarningPosition, PoisonGasWarningRadius, 100)
-      
+
       color = BLUE
       circle(SafetyZonePosition, SafetyZoneRadius, 100)
-      
+
       if (PoisonGasWarningPosition.len() > 0) {
         color = safeDirectionColor
         line(selfCoords, PoisonGasWarningPosition)
@@ -319,7 +397,7 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
     }
     Gdx.gl.glLineWidth(1f)
   }
-  
+
   private fun drawGrid() {
     draw(Filled) {
       color = BLACK
@@ -337,7 +415,7 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
       }
     }
   }
-  
+
   private fun ShapeRenderer.drawAPawn(typeLocation: EnumMap<Archetype, MutableList<renderInfo>>,
                                       selfX: Float, selfY: Float,
                                       zoom: Float,
@@ -367,7 +445,7 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
         }
         Player -> actorInfos?.forEach {
           drawPlayer(playerColor, it)
-          
+
           aimAtMe(it, selfX, selfY, currentTime, zoom)
         }
         Parachute -> actorInfos?.forEach {
@@ -385,7 +463,7 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
       }
     }
   }
-  
+
   private fun ShapeRenderer.drawCorpse() {
     corpseLocation.values.forEach {
       val (x, y) = it
@@ -397,7 +475,7 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
       rect(x - radius, y - radius, radius * 2, radius * 2)
     }
   }
-  
+
   private fun ShapeRenderer.drawAirDrop(zoom: Float) {
     airDropLocation.values.forEach {
       val (x, y) = it
@@ -411,45 +489,85 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
       rect(x - airDropRadius, y - airDropRadius, airDropRadius, airDropRadius * 2)
     }
   }
-  
+
   private fun ShapeRenderer.drawItem() {
     droppedItemLocation.values.asSequence().filter { it.second.isNotEmpty() }
         .forEach {
           val (x, y) = it.first
           val items = it.second
           val finalColor = it.third
-          
+
           if (finalColor.a == 0f)
             finalColor.set(
                 when {
-                  "98k" in items || "m416" in items || "Choke" in items || "scar" in items -> rareWeaponColor
-                  "armor3" in items || "helmet3" in items -> rareArmorColor
+                  "M4" in items || "Ak" in items || "Scar" in items -> rareWeaponColor
+                  "98k" in items || "Mini" in items || "Sks" in items -> sniperColor
+                  "U.Supp" in items || "AR.Supp" in items || "S.Supp" in items -> suppressorColor
+                  "Arm3" in items || "Helm3" in items -> rareArmorColor
                   "4x" in items || "8x" in items -> rareScopeColor
-                  "Extended" in items || "Compensator" in items -> rareAttachColor
-                  "heal" in items || "drink" in items -> healItemColor
+                  "AR.ExtQ" in items || "S.ExtQ" in items -> rareAttachColor
+                  "AR.Ext" in items || "S.Ext" in items || "AR.Comp" in items || "S.Comp" in items -> rareAttachColor
+                  "A.Grip" in items || "V.Grip" in items -> rareAttachColor
+                  "FirstAid" in items || "MedKit" in items -> healItemColor
                   else -> normalItemColor
-                })
-          
-          val rare = when (finalColor) {
-            rareWeaponColor, rareArmorColor, rareScopeColor, rareAttachColor -> true
+                }
+              )
+
+          val epic = when (finalColor) {
+            sniperColor, suppressorColor, rareScopeColor -> false//true
             else -> false
           }
+          val rare = when (finalColor) {
+            rareWeaponColor, rareArmorColor -> false//true
+            else -> false
+          }
+          val normal = when (finalColor) {
+            rareAttachColor, healItemColor -> false//true
+            else -> false
+          }
+
           val backgroundRadius = (itemRadius + 50f)
           val radius = itemRadius
-          if (rare) {
-            color = BLACK
-            rect(x - backgroundRadius, y - backgroundRadius, backgroundRadius * 2, backgroundRadius * 2)
-            color = finalColor
-            rect(x - radius, y - radius, radius * 2, radius * 2)
-          } else {
-            color = BLACK
-            circle(x, y, backgroundRadius, 10)
-            color = finalColor
-            circle(x, y, radius, 10)
+
+          val triBackRadius = backgroundRadius * 1.5f
+          val triRadius = radius * 1.5f
+
+          when {
+            epic -> {
+              // Triangle
+              color = BLACK
+              triangle(x, y - triBackRadius,
+                      x - triBackRadius * 0.866f, y + triBackRadius * 0.5f,
+                      x + triBackRadius * 0.866f, y + triBackRadius * 0.5f)
+              color = finalColor
+              triangle(x, y - triRadius,
+                      x - triRadius * 0.866f, y + triRadius * 0.5f,
+                      x + triRadius * 0.866f, y + triRadius * 0.5f)
+            }
+            rare -> {
+              // Square
+              color = BLACK
+              rect(x - backgroundRadius,
+                      y - backgroundRadius,
+                      backgroundRadius * 2,
+                      backgroundRadius * 2)
+              color = finalColor
+              rect(x - radius, y - radius, radius * 2, radius * 2)
+            }
+            normal -> {
+              // Circle
+              color = BLACK
+              circle(x, y, backgroundRadius * 0.9f, 10)
+              color = finalColor
+              circle(x, y, radius * 0.9f, 10)
+            }
+            else -> {
+              // Do nothing
+            }
           }
         }
   }
-  
+
   fun drawPlayerInfos(players: MutableList<renderInfo>?) {
     players?.forEach {
       val (actor, x, y, _) = it
@@ -464,14 +582,13 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
         val info = completedPlayerInfo[name]!!
         val desc = "$name($numKills)\n${info.win}/${info.totalPlayed}\n${info.roundMostKill}-${info.killDeathRatio.d(2)}/${info.headshotKillRatio.d(2)}\n$teamNumber"
         nameFont.draw(spriteBatch, desc, sx + 2, windowHeight - sy - 2)
-      } else
-        nameFont.draw(spriteBatch, "$name($numKills)\n$teamNumber", sx + 2, windowHeight - sy - 2)
+      } else nameFont.draw(spriteBatch, "$name($numKills)\n$teamNumber", sx + 2, windowHeight - sy - 2)
     }
     val profileText = "${completedPlayerInfo.size}/${completedPlayerInfo.size + pendingPlayerInfo.size}"
     layout.setText(largeFont, profileText)
     largeFont.draw(spriteBatch, profileText, windowWidth - layout.width, windowHeight - 10f)
   }
-  
+
   var lastPlayTime = System.currentTimeMillis()
   fun safeZoneHint() {
     if (PoisonGasWarningPosition.len() > 0) {
@@ -492,7 +609,7 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
       }
     }
   }
-  
+
   inline fun draw(type: ShapeType, draw: ShapeRenderer.() -> Unit) {
     shapeRenderer.apply {
       begin(type)
@@ -500,7 +617,7 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
       end()
     }
   }
-  
+
   inline fun paint(matrix: Matrix4, paint: SpriteBatch.() -> Unit) {
     spriteBatch.apply {
       projectionMatrix = matrix
@@ -509,11 +626,11 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
       end()
     }
   }
-  
+
   fun ShapeRenderer.circle(loc: Vector2, radius: Float, segments: Int) {
     circle(loc.x, loc.y, radius, segments)
   }
-  
+
   fun ShapeRenderer.aimAtMe(it: renderInfo, selfX: Float, selfY: Float, currentTime: Long, zoom: Float) {
     //draw aim line
     val (actor, x, y, dir) = it
@@ -525,7 +642,7 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
     var aim = false
     if (distance < aimLineRange && distance > aimCircleRadius) {
       val aimAngle = focus.angle(dirVec)
-      if (aimAngle.absoluteValue < asin(aimCircleRadius / distance) * MathUtils.radiansToDegrees) {//aim
+      if (aimAngle.absoluteValue < asin(aimCircleRadius / distance) * MathUtils.radiansToDegrees) { //aim
         aim = true
         aimStartTime.compute(actorID) { _, startTime ->
           if (startTime == null) currentTime
@@ -542,30 +659,29 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
     if (!aim)
       aimStartTime.remove(actorID)
   }
-  
+
   fun ShapeRenderer.drawPlayer(pColor: Color?, actorInfo: renderInfo, drawSight: Boolean = true) {
     val zoom = camera.zoom
     val backgroundRadius = (playerRadius + 2000f) * zoom
     val playerRadius = playerRadius * zoom
     val directionRadius = directionRadius * zoom
-    
+
     color = BLACK
     val (actor, x, y, dir) = actorInfo
     circle(x, y, backgroundRadius, 10)
-    
+
     color = if (isTeamMate(actor))
       teamColor
-    else
-      pColor
-    
+    else pColor
+
     circle(x, y, playerRadius, 10)
-    
+
     if (drawSight) {
       color = sightColor
       arc(x, y, directionRadius, dir - fov / 2, fov, 10)
     }
   }
-  
+
   private fun isTeamMate(actor: Actor?): Boolean {
     if (actor != null) {
       val playerStateGUID = actorWithPlayerState[actor.netGUID]
@@ -577,14 +693,14 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
     }
     return false
   }
-  
+
   fun ShapeRenderer.drawVehicle(_color: Color, actorInfo: renderInfo,
                                 width: Float, height: Float) {
-    
+
     val (actor, x, y, dir) = actorInfo
     val v_x = actor!!.velocity.x
     val v_y = actor.velocity.y
-    
+
     val dirVector = dirUnitVector.cpy().rotate(dir).scl(height / 2)
     color = BLACK
     val backVector = dirVector.cpy().nor().scl(height / 2 + 200f)
@@ -593,26 +709,26 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
     color = _color
     rectLine(x - dirVector.x, y - dirVector.y,
              x + dirVector.x, y + dirVector.y, width)
-    
+
     if (actor.beAttached || v_x * v_x + v_y * v_y > 40) {
       color = playerColor
       circle(x, y, playerRadius * camera.zoom, 10)
     }
   }
-  
+
   override fun resize(width: Int, height: Int) {
     windowWidth = width.toFloat()
     windowHeight = height.toFloat()
     camera.setToOrtho(true, windowWidth * windowToMapUnit, windowHeight * windowToMapUnit)
     fontCamera.setToOrtho(false, windowWidth, windowHeight)
   }
-  
+
   override fun pause() {
   }
-  
+
   override fun resume() {
   }
-  
+
   override fun dispose() {
     deregister(this)
     alarmSound.dispose()
@@ -621,8 +737,10 @@ class GLMap: InputAdapter(), ApplicationListener, GameListener {
     littleFont.dispose()
     mapErangel.dispose()
     mapMiramar.dispose()
+    for ((key, image) in iconImages) {
+      image.dispose()
+    }
     spriteBatch.dispose()
     shapeRenderer.dispose()
   }
-  
 }

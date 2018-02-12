@@ -27,7 +27,7 @@ fun deregister(gameListener: GameListener) {
 
 fun gameStart() {
   println("New Game on")
-  
+
   gameStarted = true
   gameListeners.forEach { it.onGameStart() }
 }
@@ -37,7 +37,13 @@ fun gameOver() {
   gameListeners.forEach { it.onGameOver() }
 }
 
+lateinit var Args: Array<String>
 fun main(args: Array<String>) {
+  Args = args
+  if (args.size<2) {
+    println("usage: <ip> <sniff option>")
+    System.exit(-1)
+  }
   Sniffer.sniffLocationOnline()
   val ui = GLMap()
   ui.show()

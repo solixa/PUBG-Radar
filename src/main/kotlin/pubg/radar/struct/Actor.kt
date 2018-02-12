@@ -22,7 +22,7 @@ enum class Archetype { //order matters, it affects the order of drawing
   PlayerState,
   Team,
   DeathDropItemPackage;
-  
+
   companion object {
     fun fromArchetype(archetype: String) = when {
       archetype.contains("Default__TSLGameState") -> GameState
@@ -48,21 +48,21 @@ enum class Archetype { //order matters, it affects the order of drawing
 
 class Actor(val netGUID: NetworkGUID, val archetypeGUID: NetworkGUID, val archetype: NetGuidCacheObject, val ChIndex: Int) {
   val Type: Archetype = fromArchetype(archetype.pathName)
-  
+
   var location = Vector3.Zero
   var rotation = Vector3.Zero
   var velocity = Vector3.Zero
-  
+
   var owner: NetworkGUID? = null
   var attachTo: NetworkGUID? = null
   var beAttached = false
   var isStatic = false
-  
+
   override fun toString(): String {
     val ow = if (owner != null) owner else ""
     return "Actor(netGUID=$netGUID,location=$location,archetypeGUID=$archetypeGUID, archetype=$archetype, ChIndex=$ChIndex, Type=$Type,  rotation=$rotation, velocity=$velocity,owner=$ow"
   }
-  
+
   val isAPawn = when (Type) {
     TwoSeatBoat,
     SixSeatBoat,
