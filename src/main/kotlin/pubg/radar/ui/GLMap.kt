@@ -99,10 +99,13 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
 
   lateinit var spriteBatch: SpriteBatch
   lateinit var shapeRenderer: ShapeRenderer
-  lateinit var mapErangel: Texture
-  lateinit var mapMiramar: Texture
+  // lateinit var mapErangel: Texture
+  // lateinit var mapMiramar: Texture
+  lateinit var mapErangelTiles: MutableMap<String, MutableMap<String, MutableMap<String, Texture>>>
+  lateinit var mapMiramarTiles: MutableMap<String, MutableMap<String, MutableMap<String, Texture>>>
+  lateinit var mapTiles: MutableMap<String, MutableMap<String, MutableMap<String, Texture>>>
   lateinit var iconImages: Map<String, Texture>
-  lateinit var map: Texture
+  // lateinit var map: Texture
   lateinit var largeFont: BitmapFont
   lateinit var littleFont: BitmapFont
   lateinit var nameFont: BitmapFont
@@ -110,6 +113,10 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
   lateinit var fontCamera: OrthographicCamera
   lateinit var camera: OrthographicCamera
   lateinit var alarmSound: Sound
+
+  val tileZooms = listOf("256", "512", "1024", "2048", "4096", "8192")
+  val tileRowCounts = listOf(1, 2, 4, 8, 16, 32)
+  val tileSizes = listOf(819200f, 409600f, 204800f, 102400f, 51200f, 25600f)
 
   val layout = GlyphLayout()
   var windowWidth = initialWindowWidth
@@ -155,8 +162,8 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
 
     fontCamera = OrthographicCamera(initialWindowWidth, initialWindowWidth)
     alarmSound = Gdx.audio.newSound(Gdx.files.internal("Alarm.wav"))
-    mapErangel = Texture(Gdx.files.internal("Erangel.bmp"))
-    mapMiramar = Texture(Gdx.files.internal("Miramar.bmp"))
+    // mapErangel = Texture(Gdx.files.internal("Erangel.bmp"))
+    // mapMiramar = Texture(Gdx.files.internal("Miramar.bmp"))
     iconImages = mapOf(
       "AR.Supp" to Texture(Gdx.files.internal("icons/AR.Supp.png")),
       "S.Supp" to Texture(Gdx.files.internal("icons/S.Supp.png")),
@@ -193,7 +200,26 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
       "Drink" to Texture(Gdx.files.internal("icons/Drink.png")),
       "Grenade" to Texture(Gdx.files.internal("icons/Grenade.png"))
     )
-    map = mapErangel
+    mapErangelTiles = mutableMapOf()
+    mapMiramarTiles = mutableMapOf()
+    var cur = 0
+    tileZooms.forEach{
+        mapErangelTiles.set(it, mutableMapOf())
+        mapMiramarTiles.set(it, mutableMapOf())
+        for (i in 1..tileRowCounts[cur]) {
+            val y = if (i < 10) "0$i" else "$i"
+            mapErangelTiles[it]?.set(y, mutableMapOf())
+            mapMiramarTiles[it]?.set(y, mutableMapOf())
+            for (j in 1..tileRowCounts[cur]) {
+                val x = if (j < 10) "0$j" else "$j"
+                mapErangelTiles[it]!![y]?.set(x, Texture(Gdx.files.internal("tiles/Erangel/${it}/${it}_${y}_${x}.png")))
+                mapMiramarTiles[it]!![y]?.set(x, Texture(Gdx.files.internal("tiles/Miramar/${it}/${it}_${y}_${x}.png")))
+            }
+        }
+        cur++
+    }
+    mapTiles = mapErangelTiles
+    // map = mapErangel
 
     val generator = FreeTypeFontGenerator(Gdx.files.internal("GOTHICB.TTF"))
     val param = FreeTypeFontParameter()
@@ -217,10 +243,14 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
   override fun render() {
     Gdx.gl.glClearColor(0.417f, 0.417f, 0.417f, 0f)
     Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)
+    // if (gameStarted)
+    //   map = if (isErangel) mapErangel else mapMiramar
+    // else return
     if (gameStarted)
-      map = if (isErangel) mapErangel else mapMiramar
+      mapTiles = if (isErangel) mapErangelTiles else mapMiramarTiles
     else return
     val currentTime = System.currentTimeMillis()
+    selfCoords = Vector2(409600f, 409600f)
     val (selfX, selfY) = selfCoords
     val selfDir = Vector2(selfX, selfY).sub(preSelfCoords)
     if (selfDir.len() < 1e-8)
@@ -231,10 +261,43 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
     camera.update()
 
     //draw map
+    // paint(camera.combined) {
+    //   draw(map, 0f, 0f, mapWidth, mapWidth,
+    //        0, 0, map.width, map.height,
+    //        false, true)
+    // }
+
+    val cameraTileScale = Math.max(windowWidth, windowHeight) / camera.zoom
+    var useScale = 0
+    when {
+        cameraTileScale > 4096 -> useScale = 5
+        cameraTileScale > 2048 -> useScale = 4
+        cameraTileScale > 1024 -> useScale = 3
+        cameraTileScale > 512 -> useScale = 2
+        cameraTileScale > 256 -> useScale = 1
+        else -> useScale = 0
+    }
+    val (tlX, tlY) = Vector2(0f, 0f).windowToMap()
+    val (brX, brY) = Vector2(windowWidth, windowHeight).windowToMap()
+    var tileZoom = tileZooms[useScale]
+    var tileRowCount = tileRowCounts[useScale]
+    var tileSize = tileSizes[useScale]
     paint(camera.combined) {
-      draw(map, 0f, 0f, mapWidth, mapWidth,
-           0, 0, map.width, map.height,
+      val xMin = (tlX.toInt() / tileSize.toInt()).coerceIn(1, tileRowCount)
+      val xMax = ((brX.toInt() + tileSize.toInt()) / tileSize.toInt()).coerceIn(1, tileRowCount)
+      val yMin = (tlY.toInt() / tileSize.toInt()).coerceIn(1, tileRowCount)
+      val yMax = ((brY.toInt() + tileSize.toInt()) / tileSize.toInt()).coerceIn(1, tileRowCount)
+      for (i in yMin..yMax) {
+        val y = if (i < 10) "0$i" else "$i"
+        for (j in xMin..xMax) {
+          val x = if (j < 10) "0$j" else "$j"
+          val tileStartX = (j-1)*tileSize
+          val tileStartY = (i-1)*tileSize
+          draw(mapTiles[tileZoom]!![y]!![x], tileStartX, tileStartY, tileSize, tileSize,
+           0, 0, 256, 256,
            false, true)
+        }
+      }
     }
 
     shapeRenderer.projectionMatrix = camera.combined
@@ -735,10 +798,24 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
     nameFont.dispose()
     largeFont.dispose()
     littleFont.dispose()
-    mapErangel.dispose()
-    mapMiramar.dispose()
+    // mapErangel.dispose()
+    // mapMiramar.dispose()
     for ((key, image) in iconImages) {
       image.dispose()
+    }
+
+    var cur = 0
+    tileZooms.forEach{
+        for (i in 1..tileRowCounts[cur]) {
+            val y = if (i < 10) "0$i" else "$i"
+            for (j in 1..tileRowCounts[cur]) {
+                val x = if (j < 10) "0$j" else "$j"
+                mapErangelTiles[it]!![y]!![x]!!.dispose()
+                mapMiramarTiles[it]!![y]!![x]!!.dispose()
+                mapTiles[it]!![y]!![x]!!.dispose()
+            }
+        }
+        cur++
     }
     spriteBatch.dispose()
     shapeRenderer.dispose()
