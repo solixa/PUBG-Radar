@@ -250,7 +250,6 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
       mapTiles = if (isErangel) mapErangelTiles else mapMiramarTiles
     else return
     val currentTime = System.currentTimeMillis()
-    selfCoords = Vector2(409600f, 409600f)
     val (selfX, selfY) = selfCoords
     val selfDir = Vector2(selfX, selfY).sub(preSelfCoords)
     if (selfDir.len() < 1e-8)
