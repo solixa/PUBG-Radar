@@ -1,7 +1,9 @@
 package pubg.radar.ui
 
 import com.badlogic.gdx.*
+import com.badlogic.gdx.Input.Buttons.LEFT
 import com.badlogic.gdx.Input.Buttons.RIGHT
+import com.badlogic.gdx.Input.Buttons.MIDDLE
 import com.badlogic.gdx.audio.Sound
 import com.badlogic.gdx.backends.lwjgl3.*
 import com.badlogic.gdx.graphics.*
@@ -126,13 +128,19 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
   val attackLineStartTime = LinkedList<Triple<NetworkGUID, NetworkGUID, Long>>()
   val pinLocation = Vector2()
 
+  var dragging = false
+  var prevScreenX = -1f
+  var prevScreenY = -1f
+  var screenOffsetX = 0f
+  var screenOffsetY = 0f
+
   fun Vector2.windowToMap() =
-      Vector2(selfCoords.x + (x - windowWidth / 2.0f) * camera.zoom * windowToMapUnit,
-              selfCoords.y + (y - windowHeight / 2.0f) * camera.zoom * windowToMapUnit)
+      Vector2(selfCoords.x + (x - windowWidth / 2.0f) * camera.zoom * windowToMapUnit + screenOffsetX,
+              selfCoords.y + (y - windowHeight / 2.0f) * camera.zoom * windowToMapUnit + screenOffsetY)
 
   fun Vector2.mapToWindow() =
-      Vector2((x - selfCoords.x) / (camera.zoom * windowToMapUnit) + windowWidth / 2.0f,
-              (y - selfCoords.y) / (camera.zoom * windowToMapUnit) + windowHeight / 2.0f)
+      Vector2((x - selfCoords.x - screenOffsetX) / (camera.zoom * windowToMapUnit) + windowWidth / 2.0f,
+              (y - selfCoords.y - screenOffsetY) / (camera.zoom * windowToMapUnit) + windowHeight / 2.0f)
 
   override fun scrolled(amount: Int): Boolean {
     camera.zoom *= 1.1f.pow(amount)
@@ -142,6 +150,33 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
   override fun touchDown(screenX: Int, screenY: Int, pointer: Int, button: Int): Boolean {
     if (button == RIGHT) {
       pinLocation.set(pinLocation.set(screenX.toFloat(), screenY.toFloat()).windowToMap())
+      return true
+    } else if (button == LEFT) {
+      dragging = true
+      prevScreenX = screenX.toFloat()
+      prevScreenY = screenY.toFloat()
+      return true
+    } else if (button == MIDDLE) {
+      screenOffsetX = 0f
+      screenOffsetY = 0f
+    }
+    return false
+  }
+
+  override fun touchDragged (screenX: Int, screenY: Int, pointer: Int): Boolean {
+		if (!dragging) return false
+    with (camera) {
+      screenOffsetX += (prevScreenX - screenX.toFloat()) * camera.zoom * 500
+      screenOffsetY += (prevScreenY - screenY.toFloat()) * camera.zoom * 500
+      prevScreenX = screenX.toFloat()
+      prevScreenY = screenY.toFloat()
+    }
+		return true
+	}
+
+  override fun touchUp(screenX: Int, screenY: Int, pointer: Int, button: Int): Boolean {
+    if (button == LEFT) {
+      dragging = false
       return true
     }
     return false
@@ -256,7 +291,7 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
       selfDir.set(preDirection)
 
     //move camera
-    camera.position.set(selfX, selfY, 0f)
+    camera.position.set(selfX + screenOffsetX, selfY + screenOffsetY, 0f)
     camera.update()
 
     //draw map
