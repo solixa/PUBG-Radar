@@ -44,7 +44,7 @@ fun main(args: Array<String>) {
     println("usage: <ip> <sniff option>")
     System.exit(-1)
   }
-  Sniffer.sniffLocationOnline()
+  Sniffer.sniffLocationOffline()
   val ui = GLMap()
   ui.show()
 }

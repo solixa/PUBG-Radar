@@ -358,7 +358,7 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
       val (x, y) = pinLocation.mapToWindow()
       littleFont.draw(spriteBatch, "$time", x, windowHeight - y)
       safeZoneHint()
-      drawPlayerInfos(typeLocation[Player])
+      //drawPlayerInfos(typeLocation[Player])
 
       var itemNameDrawBlacklist = arrayListOf(
         "AR.Stock",
@@ -368,36 +368,22 @@ class GLMap : InputAdapter(), ApplicationListener, GameListener {
         "V.Grip",
         "556",
         "762",
-        "Ak",
-        "Sks",
         "Grenade"
       )
       droppedItemLocation.values.asSequence().filter { it.second.isNotEmpty() }
         .forEach {
           val (x, y) = it.first
           val items = it.second
-          val finalColor = it.third
+          val (sx, sy) = Vector2(x+16, y-16).mapToWindow()
+          val syFixY = windowHeight - sy
 
-          val (sx, sy) = Vector2(x, y).mapToWindow()
-          val syFix = windowHeight - sy
-
-          var yOffset = 2
-          // println(items)
           items.forEach {
             if (it !in itemNameDrawBlacklist) {
-              if (
-                it in iconImages &&
-                sx > 0 && sx < windowWidth &&
-                syFix > 0 && syFix < windowHeight
-              ) {
-                draw(iconImages[it], sx, syFix)
-              } else {
-                // itemFont.draw(spriteBatch, it, sx, windowHeight - sy - yOffset)
+              if (it in iconImages && sx > 0 && sx < windowWidth && sy > 0 && sy < windowHeight)
+                draw(iconImages[it], sx, syFixY)
               }
-              yOffset = yOffset + 2
             }
           }
-        }
     }
 
     val zoom = camera.zoom
